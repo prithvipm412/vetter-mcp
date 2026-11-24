@@ -27,6 +27,15 @@ CREATE TABLE IF NOT EXISTS servers (
     claim_vs_behaviour TEXT,
     scanned_at TEXT
 );
+
+CREATE TABLE IF NOT EXISTS incidents (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    server_id TEXT NOT NULL,
+    time TEXT NOT NULL,
+    type TEXT NOT NULL,
+    tool TEXT,
+    detail TEXT
+);
 """
 
 
@@ -53,7 +62,7 @@ def get_connection(db_path: Path | None = None) -> Iterator[sqlite3.Connection]:
 
 def init_db(db_path: Path | None = None) -> None:
     with get_connection(db_path or config.DB_PATH) as conn:
-        conn.execute(_SCHEMA)
+        conn.executescript(_SCHEMA)
         existing_ids = {row["id"] for row in conn.execute("SELECT id FROM servers")}
         for entry in SERVERS:
             if entry.id not in existing_ids:
@@ -123,3 +132,42 @@ def save_scan_result(
 def set_status(server_id: str, status: str, db_path: Path | None = None) -> None:
     with get_connection(db_path or config.DB_PATH) as conn:
         conn.execute("UPDATE servers SET status = ? WHERE id = ?", (status, server_id))
+
+
+def log_incident(
+    server_id: str,
+    type_: str,
+    tool: str | None,
+    detail: str,
+    time: str | None = None,
+    db_path: Path | None = None,
+) -> None:
+    from datetime import datetime, timezone
+
+    with get_connection(db_path or config.DB_PATH) as conn:
+        conn.execute(
+            "INSERT INTO incidents (server_id, time, type, tool, detail) VALUES (?, ?, ?, ?, ?)",
+            (server_id, time or datetime.now(timezone.utc).isoformat(), type_, tool, detail),
+        )
+
+
+def list_incidents(server_id: str | None = None, db_path: Path | None = None) -> list[dict[str, Any]]:
+    with get_connection(db_path or config.DB_PATH) as conn:
+        if server_id is not None:
+            rows = conn.execute(
+                "SELECT time, type, tool, detail FROM incidents WHERE server_id = ? ORDER BY id",
+                (server_id,),
+            ).fetchall()
+        else:
+            rows = conn.execute("SELECT time, type, tool, detail FROM incidents ORDER BY id").fetchall()
+        return [dict(row) for row in rows]
+
+
+def reset_demo_state(db_path: Path | None = None) -> None:
+    """Wipe scan results, statuses and incidents back to the Phase 1 seed state."""
+    with get_connection(db_path or config.DB_PATH) as conn:
+        conn.execute("DELETE FROM incidents")
+        conn.execute(
+            "UPDATE servers SET verdict = NULL, labels = '[]', status = 'new', "
+            "static_findings = NULL, behaviour = NULL, claim_vs_behaviour = NULL, scanned_at = NULL"
+        )
