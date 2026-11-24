@@ -1,0 +1,54 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "vetter-mcp"
+version = "0.1.0"
+description = "App-store review for the AI tools you connect to your assistant."
+readme = "README.md"
+requires-python = ">=3.11"
+license = "MIT"
+dependencies = [
+    "mcp>=1.9,<2",
+    "fastapi>=0.115,<1",
+    "uvicorn[standard]>=0.30,<1",
+    "httpx>=0.27,<1",
+    "pydantic>=2.7,<3",
+    "rich>=13.7,<16",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8,<10",
+    "pytest-asyncio>=0.24,<1",
+    "ruff>=0.6,<1",
+    "mypy>=1.10,<3",
+]
+
+[project.scripts]
+vetter = "vetter.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["vetter*", "demo_servers*"]
+
+[tool.ruff]
+line-length = 115
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+ignore = ["E501"]
+
+[tool.mypy]
+python_version = "3.11"
+ignore_missing_imports = true
+warn_unused_ignores = false
+exclude = ["^tests/", "^scripts/", "^build/"]
+
+[[tool.mypy.overrides]]
+module = "demo_servers.*"
+ignore_errors = true
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"

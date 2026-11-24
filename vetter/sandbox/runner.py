@@ -185,6 +185,8 @@ async def run_sandbox(entry: ServerEntry, tools: list[ToolInfo]) -> SandboxRepor
                 or "/lib/python3." in path
                 or path.endswith((".pyc", ".pyo", ".zip"))
                 or path.startswith("/System/Library/")
+                or ".egg-info" in path
+                or ".dist-info" in path
             )
 
         seen_paths: set[str] = set()
