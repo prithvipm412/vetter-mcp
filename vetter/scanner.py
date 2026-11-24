@@ -15,9 +15,21 @@ import re
 import unicodedata
 from pathlib import Path
 
+from dataclasses import asdict
+
 from vetter.mcp_client import ToolInfo
-from vetter.models import Behaviour, ClaimVsBehaviour, DeclaredTool, Finding, ScanReport
+from vetter.models import (
+    Behaviour,
+    CanaryLeak,
+    ClaimVsBehaviour,
+    DeclaredTool,
+    FileAccess,
+    Finding,
+    ScanReport,
+    ToolCallOutcome,
+)
 from vetter.registry import ServerEntry
+from vetter.sandbox.runner import SandboxReport
 
 INVISIBLE_CHARS_PATTERN = re.compile(
     "[​‌‍⁠﻿‎‏‪-‮⁦-⁩]"
@@ -321,3 +333,49 @@ def scan_server(entry: ServerEntry, tools: list[ToolInfo]) -> tuple[str, list[st
     verdict, labels = _verdict_from_findings(findings)
     report = ScanReport(static_findings=findings, behaviour=behaviour, claim_vs_behaviour=claim)
     return verdict, labels, report
+
+
+def merge_sandbox_results(
+    verdict: str, labels: list[str], report: ScanReport, sandbox: SandboxReport
+) -> tuple[str, list[str], ScanReport]:
+    """Fold a dynamic sandbox run into an existing static ScanReport.
+
+    A confirmed canary-secret leak always forces high_risk; a sandboxed read
+    of a decoy secret file (without a confirmed leak) bumps looks_ok to
+    review. Both get recorded as claim-vs-behaviour mismatches, not just
+    silently baked into the verdict.
+    """
+    report.behaviour.files_opened = [FileAccess(**asdict(f)) for f in sandbox.files_opened]
+    report.behaviour.network_destinations = sandbox.network_destinations
+    report.behaviour.canary_leak = CanaryLeak(**asdict(sandbox.canary_leak))
+    report.behaviour.tool_calls = [ToolCallOutcome(**asdict(c)) for c in sandbox.tool_calls]
+    report.behaviour.sandbox_error = sandbox.error
+
+    new_mismatches: list[str] = []
+
+    if sandbox.canary_leak.leaked:
+        new_mismatches.append(
+            "Live sandbox test confirmed exfiltration: a canary secret from "
+            f"{sandbox.canary_leak.secret} was sent to {sandbox.canary_leak.destination}."
+        )
+        labels.append("Sandbox confirmed a canary secret was exfiltrated")
+        verdict = "high_risk"
+
+    decoy_files = [f.path for f in sandbox.files_opened if f.is_decoy]
+    if decoy_files and not sandbox.canary_leak.leaked:
+        new_mismatches.append(
+            "Live sandbox test showed the server reading sensitive decoy files "
+            f"({', '.join(decoy_files)}) even though no exfiltration was observed."
+        )
+        labels.append("Sandbox observed access to decoy secret files")
+        if verdict == "looks_ok":
+            verdict = "review"
+
+    if sandbox.error:
+        new_mismatches.append(f"Sandbox could not finish testing this server: {sandbox.error}")
+
+    if new_mismatches:
+        report.claim_vs_behaviour.mismatches.extend(new_mismatches)
+        report.claim_vs_behaviour.capability_match = False
+
+    return verdict, sorted(set(labels)), report

@@ -18,10 +18,11 @@ from vetter.config import ALLOWED_ORIGINS
 from vetter.mcp_client import MCPIntrospectionError, list_server_tools
 from vetter.models import ServerScanResult, ServerSummary
 from vetter.registry import SERVERS_BY_ID
-from vetter.scanner import scan_server
+from vetter.sandbox.runner import run_sandbox
+from vetter.scanner import merge_sandbox_results, scan_server
 
 
-async def _scan_and_store(server_id: str) -> dict[str, Any]:
+async def _scan_and_store(server_id: str, with_sandbox: bool = True) -> dict[str, Any]:
     entry = SERVERS_BY_ID[server_id]
     try:
         tools = await list_server_tools(entry.module)
@@ -29,6 +30,9 @@ async def _scan_and_store(server_id: str) -> dict[str, Any]:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
     verdict, labels, report = scan_server(entry, tools)
+    if with_sandbox:
+        sandbox_report = await run_sandbox(entry, tools)
+        verdict, labels, report = merge_sandbox_results(verdict, labels, report, sandbox_report)
     scanned_at = datetime.now(timezone.utc).isoformat()
     report_dict = report.model_dump()
 
@@ -56,7 +60,9 @@ async def lifespan(app: FastAPI):
     db.init_db()
     for server_id in SERVERS_BY_ID:
         try:
-            await _scan_and_store(server_id)
+            # Startup only runs the fast static pass; POST /scan is what
+            # triggers the (slower) sandbox run.
+            await _scan_and_store(server_id, with_sandbox=False)
         except HTTPException:
             # A demo server failing to start shouldn't take the whole API down;
             # it will simply show up with no verdict yet until re-scanned.

@@ -23,10 +23,35 @@ class DeclaredTool(BaseModel):
     description: str
 
 
+class FileAccess(BaseModel):
+    path: str
+    is_decoy: bool
+
+
+class CanaryLeak(BaseModel):
+    leaked: bool
+    secret: str | None = None
+    destination: str | None = None
+
+
+class ToolCallOutcome(BaseModel):
+    tool: str
+    arguments: dict
+    ok: bool
+    error: str | None = None
+
+
 class Behaviour(BaseModel):
     declared_tools: list[DeclaredTool]
     detected_actions: list[str]
     extra_tools: list[str]
+    # Populated once a sandbox run has happened (POST /scan); absent/empty
+    # for a purely static report.
+    files_opened: list[FileAccess] = []
+    network_destinations: list[str] = []
+    canary_leak: CanaryLeak | None = None
+    tool_calls: list[ToolCallOutcome] = []
+    sandbox_error: str | None = None
 
 
 class ClaimVsBehaviour(BaseModel):
