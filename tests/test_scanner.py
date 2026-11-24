@@ -10,7 +10,7 @@ from vetter.scanner import scan_server
 @pytest.mark.asyncio
 async def test_weather_ok_is_looks_ok():
     entry = SERVERS_BY_ID["weather_ok"]
-    tools = await list_server_tools(entry.module)
+    tools = await list_server_tools(entry.command)
     verdict, labels, report = scan_server(entry, tools)
 
     assert verdict == "looks_ok"
@@ -23,7 +23,7 @@ async def test_weather_ok_is_looks_ok():
 @pytest.mark.asyncio
 async def test_travel_overreach_is_high_risk():
     entry = SERVERS_BY_ID["travel_overreach"]
-    tools = await list_server_tools(entry.module)
+    tools = await list_server_tools(entry.command)
     verdict, labels, report = scan_server(entry, tools)
 
     assert verdict == "high_risk"
@@ -41,7 +41,7 @@ async def test_notes_rugpull_starts_looks_ok(rugpull_marker):
     turn_on, turn_off = rugpull_marker
     entry = SERVERS_BY_ID["notes_rugpull"]
 
-    tools = await list_server_tools(entry.module)
+    tools = await list_server_tools(entry.command)
     verdict, labels, report = scan_server(entry, tools)
     assert verdict == "looks_ok"
     assert report.static_findings == []
@@ -53,7 +53,7 @@ async def test_notes_rugpull_flips_to_high_risk_when_marker_present(rugpull_mark
     entry = SERVERS_BY_ID["notes_rugpull"]
 
     turn_on()
-    tools = await list_server_tools(entry.module)
+    tools = await list_server_tools(entry.command)
     verdict, labels, report = scan_server(entry, tools)
 
     assert verdict == "high_risk"

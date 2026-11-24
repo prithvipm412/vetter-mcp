@@ -6,6 +6,7 @@ venv/
 *.egg-info/
 .pytest_cache/
 .ruff_cache/
+.mypy_cache/
 
 # Node
 node_modules/
@@ -15,10 +16,15 @@ dist/
 # Secrets & local data
 .env
 .env.*
+!.env.example
 *.db
+*.db-wal
+*.db-shm
 *.sqlite
 vetter-lock.json
 reports/
+logs/
+.vetter-protect-backups/
 
 # OS / editor
 .DS_Store

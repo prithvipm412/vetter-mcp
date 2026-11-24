@@ -140,7 +140,7 @@ async def run_sandbox(entry: ServerEntry, tools: list[ToolInfo]) -> SandboxRepor
         env = _build_sandbox_env(fake_home_dir, sitecustomize_dir, audit_log_path, f"http://127.0.0.1:{port}")
 
         try:
-            async with open_server_session(entry.module, env=env) as session:
+            async with open_server_session(entry.command, env=env) as session:
                 for tool in tools:
                     args = build_sample_args(tool.input_schema)
                     try:
@@ -169,7 +169,7 @@ async def run_sandbox(entry: ServerEntry, tools: list[ToolInfo]) -> SandboxRepor
                             ToolCallOutcome(tool=tool.name, arguments=args, ok=False, error=str(exc))
                         )
         except Exception as exc:  # noqa: BLE001 - a server that won't even start shouldn't crash /scan
-            report.error = f"sandbox failed to run {entry.module}: {exc}"
+            report.error = f"sandbox failed to run {entry.command}: {exc}"
         finally:
             proxy.stop()
 

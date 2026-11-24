@@ -44,8 +44,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 
 def build_proxy_params(server_id: str) -> StdioServerParameters:
     entry = SERVERS_BY_ID[server_id]
-    real_command = [sys.executable, "-m", entry.module]
-    proxy_args = ["-m", "vetter.proxy", "--server", server_id, "--", *real_command]
+    proxy_args = ["-m", "vetter.proxy", "--server", server_id, "--", *entry.command]
     return StdioServerParameters(command=sys.executable, args=proxy_args, cwd=str(REPO_ROOT))
 
 

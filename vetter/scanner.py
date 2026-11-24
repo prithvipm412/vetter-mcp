@@ -217,12 +217,16 @@ def _scan_tool_description(tool: ToolInfo) -> list[Finding]:
     return findings
 
 
-def _scan_source(source_path: str) -> tuple[list[str], list[str]]:
-    """Grep a demo server's own source for real network/file-access patterns.
+def _scan_source(source_path: str | None) -> tuple[list[str], list[str]]:
+    """Grep a server's own source for real network/file-access patterns, if
+    we have a readable local source file for it (always true for our demo
+    servers; only sometimes true for an imported real server).
 
     Returns (detected_actions, referenced_hosts). Source is only ever read as
     text, never imported or executed.
     """
+    if source_path is None:
+        return [], []
     path = Path(source_path)
     if not path.is_file():
         return [], []

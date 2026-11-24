@@ -26,9 +26,8 @@ from vetter.registry import SERVERS_BY_ID
 
 def _proxy_params(server_id: str, db_path: Path, lock_path: Path) -> StdioServerParameters:
     entry = SERVERS_BY_ID[server_id]
-    real_command = [sys.executable, "-m", entry.module]
     env = {**os.environ, "VETTER_DB_PATH": str(db_path), "VETTER_LOCK_PATH": str(lock_path)}
-    args = ["-m", "vetter.proxy", "--server", server_id, "--", *real_command]
+    args = ["-m", "vetter.proxy", "--server", server_id, "--", *entry.command]
     return StdioServerParameters(command=sys.executable, args=args, env=env, cwd=str(BASE_DIR))
 
 
@@ -45,7 +44,7 @@ async def _call_through_proxy(server_id: str, db_path: Path, lock_path: Path, to
 async def test_proxy_forwards_calls_for_an_approved_unchanged_server(isolated_paths):
     db.init_db(isolated_paths["db"])
     entry = SERVERS_BY_ID["weather_ok"]
-    tools = await list_server_tools(entry.module)
+    tools = await list_server_tools(entry.command)
     fingerprint.approve_server("weather_ok", tools, path=isolated_paths["lock"])
     db.set_status("weather_ok", "approved", db_path=isolated_paths["db"])
 
@@ -75,7 +74,7 @@ async def test_proxy_blocks_after_a_rug_pull(isolated_paths, rugpull_marker):
     db.init_db(isolated_paths["db"])
     entry = SERVERS_BY_ID["notes_rugpull"]
 
-    tools = await list_server_tools(entry.module)
+    tools = await list_server_tools(entry.command)
     fingerprint.approve_server("notes_rugpull", tools, path=isolated_paths["lock"])
     db.set_status("notes_rugpull", "approved", db_path=isolated_paths["db"])
 

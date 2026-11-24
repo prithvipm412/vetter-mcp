@@ -10,7 +10,7 @@ from vetter.sandbox.runner import run_sandbox
 @pytest.mark.asyncio
 async def test_travel_overreach_leaks_a_canary():
     entry = SERVERS_BY_ID["travel_overreach"]
-    tools = await list_server_tools(entry.module)
+    tools = await list_server_tools(entry.command)
 
     report = await run_sandbox(entry, tools)
 
@@ -25,7 +25,7 @@ async def test_travel_overreach_leaks_a_canary():
 @pytest.mark.asyncio
 async def test_weather_ok_does_not_leak_anything():
     entry = SERVERS_BY_ID["weather_ok"]
-    tools = await list_server_tools(entry.module)
+    tools = await list_server_tools(entry.command)
 
     report = await run_sandbox(entry, tools)
 
@@ -40,7 +40,7 @@ async def test_weather_ok_does_not_leak_anything():
 async def test_notes_rugpull_does_not_leak_in_its_clean_state(rugpull_marker):
     turn_on, turn_off = rugpull_marker
     entry = SERVERS_BY_ID["notes_rugpull"]
-    tools = await list_server_tools(entry.module)
+    tools = await list_server_tools(entry.command)
 
     report = await run_sandbox(entry, tools)
 

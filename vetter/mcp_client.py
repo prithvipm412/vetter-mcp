@@ -1,19 +1,27 @@
-"""Thin helper for talking to a demo MCP server over stdio.
+"""Thin helper for talking to an MCP server over stdio.
 
-Launches the server as a subprocess (``python -m <module>``) and asks it
-for its tool list via the standard MCP ``list_tools`` request. This is used
-purely for introspection; no tool is ever called from here.
+Launches a server as a subprocess from an arbitrary argv (``["python", "-m",
+"demo_servers.weather_ok"]`` for our own fixtures, or whatever an imported
+real server's config says, e.g. ``["npx", "-y", "some-mcp-server"]``) and
+asks it for its tool list via the standard MCP ``list_tools`` request, or
+opens a longer-lived session for calling tools. Every launch has a timeout;
+nothing here is allowed to hang forever.
 """
 
 from __future__ import annotations
 
-import sys
+import os
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from typing import AsyncIterator
 
+import anyio
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
+
+from vetter.config import BASE_DIR
+
+DEFAULT_STARTUP_TIMEOUT_SECONDS = 10.0
 
 
 @dataclass(frozen=True)
@@ -24,14 +32,29 @@ class ToolInfo:
 
 
 class MCPIntrospectionError(RuntimeError):
-    """Raised when a demo server cannot be started or queried."""
+    """Raised when a server cannot be started or queried."""
 
 
-async def list_server_tools(module: str, timeout_seconds: float = 10.0) -> list[ToolInfo]:
-    """Start ``module`` as an MCP stdio server and return its advertised tools."""
-    import anyio
+def _params(command: list[str], env: dict[str, str] | None) -> StdioServerParameters:
+    if not command:
+        raise MCPIntrospectionError("empty command: nothing to launch")
+    return StdioServerParameters(command=command[0], args=command[1:], env=env, cwd=str(BASE_DIR))
 
-    params = StdioServerParameters(command=sys.executable, args=["-m", module])
+
+async def list_server_tools(
+    command: list[str],
+    env: dict[str, str] | None = None,
+    timeout_seconds: float = DEFAULT_STARTUP_TIMEOUT_SECONDS,
+) -> list[ToolInfo]:
+    """Start ``command`` as an MCP stdio server and return its advertised tools.
+
+    ``env``, if given (e.g. an imported real server's required API keys), is
+    layered on top of this process's own environment - full inheritance,
+    unlike :func:`open_server_session`'s sandboxed use, which wants
+    isolation and builds its own environment from scratch.
+    """
+    merged_env = {**os.environ, **env} if env else None
+    params = _params(command, env=merged_env)
     try:
         with anyio.fail_after(timeout_seconds):
             async with stdio_client(params) as (read, write):
@@ -39,9 +62,9 @@ async def list_server_tools(module: str, timeout_seconds: float = 10.0) -> list[
                     await session.initialize()
                     result = await session.list_tools()
     except TimeoutError as exc:
-        raise MCPIntrospectionError(f"{module} did not respond within {timeout_seconds}s") from exc
+        raise MCPIntrospectionError(f"{command} did not respond within {timeout_seconds}s") from exc
     except Exception as exc:  # noqa: BLE001 - surface any transport failure uniformly
-        raise MCPIntrospectionError(f"failed to introspect {module}: {exc}") from exc
+        raise MCPIntrospectionError(f"failed to introspect {command}: {exc}") from exc
 
     return [
         ToolInfo(
@@ -55,17 +78,22 @@ async def list_server_tools(module: str, timeout_seconds: float = 10.0) -> list[
 
 @asynccontextmanager
 async def open_server_session(
-    module: str, env: dict[str, str] | None = None
+    command: list[str],
+    env: dict[str, str] | None = None,
+    startup_timeout_seconds: float = DEFAULT_STARTUP_TIMEOUT_SECONDS,
 ) -> AsyncIterator[ClientSession]:
-    """Launch ``module`` as an MCP stdio server and yield a live session.
+    """Launch ``command`` as an MCP stdio server and yield a live session.
 
     Unlike :func:`list_server_tools`, this keeps the subprocess alive for the
     duration of the ``with`` block (one process for many tool calls) and
     lets the caller pass a custom environment - used by the sandbox to run
-    the server inside a fake $HOME with a logging proxy and audit hook.
+    the server inside a fake $HOME with a logging proxy and audit hook. Only
+    the startup handshake is time-limited here; per-call timeouts are the
+    caller's responsibility (the sandbox applies one per tool call).
     """
-    params = StdioServerParameters(command=sys.executable, args=["-m", module], env=env)
+    params = _params(command, env=env)
     async with stdio_client(params) as (read, write):
         async with ClientSession(read, write) as session:
-            await session.initialize()
+            with anyio.fail_after(startup_timeout_seconds):
+                await session.initialize()
             yield session

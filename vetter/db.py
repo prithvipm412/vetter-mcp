@@ -36,6 +36,18 @@ CREATE TABLE IF NOT EXISTS incidents (
     tool TEXT,
     detail TEXT
 );
+
+CREATE TABLE IF NOT EXISTS imported_servers (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    command TEXT NOT NULL,
+    env TEXT,
+    source TEXT NOT NULL,
+    language TEXT NOT NULL,
+    stated_purpose TEXT NOT NULL,
+    source_path TEXT,
+    imported_at TEXT NOT NULL
+);
 """
 
 
@@ -43,6 +55,7 @@ def _connect(db_path: Path) -> sqlite3.Connection:
     conn = sqlite3.connect(db_path)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
+    conn.execute("PRAGMA journal_mode = WAL")
     return conn
 
 
@@ -134,6 +147,45 @@ def set_status(server_id: str, status: str, db_path: Path | None = None) -> None
         conn.execute("UPDATE servers SET status = ? WHERE id = ?", (status, server_id))
 
 
+def ensure_server_row(server_id: str, name: str, db_path: Path | None = None) -> None:
+    """Make sure a `servers` tracking row exists (verdict/status/etc.), e.g.
+    right after an import discovers a new server."""
+    with get_connection(db_path or config.DB_PATH) as conn:
+        conn.execute(
+            "INSERT OR IGNORE INTO servers (id, name, verdict, labels, status) VALUES (?, ?, NULL, '[]', 'new')",
+            (server_id, name),
+        )
+
+
+def upsert_imported_server(entry: dict[str, Any], db_path: Path | None = None) -> None:
+    entry = {**entry, "source_path": entry.get("source_path")}
+    with get_connection(db_path or config.DB_PATH) as conn:
+        conn.execute(
+            """
+            INSERT INTO imported_servers
+                (id, name, command, env, source, language, stated_purpose, source_path, imported_at)
+            VALUES
+                (:id, :name, :command, :env, :source, :language, :stated_purpose, :source_path, :imported_at)
+            ON CONFLICT(id) DO UPDATE SET
+                name = excluded.name,
+                command = excluded.command,
+                env = excluded.env,
+                source = excluded.source,
+                language = excluded.language,
+                stated_purpose = excluded.stated_purpose,
+                source_path = excluded.source_path,
+                imported_at = excluded.imported_at
+            """,
+            entry,
+        )
+
+
+def list_imported_servers(db_path: Path | None = None) -> list[dict[str, Any]]:
+    with get_connection(db_path or config.DB_PATH) as conn:
+        rows = conn.execute("SELECT * FROM imported_servers ORDER BY id").fetchall()
+        return [dict(row) for row in rows]
+
+
 def log_incident(
     server_id: str,
     type_: str,
@@ -164,10 +216,19 @@ def list_incidents(server_id: str | None = None, db_path: Path | None = None) ->
 
 
 def reset_demo_state(db_path: Path | None = None) -> None:
-    """Wipe scan results, statuses and incidents back to the Phase 1 seed state."""
+    """Reset the 3 built-in demo servers (and their incidents) to the seed
+    state. Deliberately scoped to just the demo ids, not any real server a
+    user has imported via POST /api/import.
+    """
+    demo_ids = [entry.id for entry in SERVERS]
+    placeholders = ",".join("?" for _ in demo_ids)
     with get_connection(db_path or config.DB_PATH) as conn:
-        conn.execute("DELETE FROM incidents")
+        conn.execute(f"DELETE FROM incidents WHERE server_id IN ({placeholders})", demo_ids)
         conn.execute(
-            "UPDATE servers SET verdict = NULL, labels = '[]', status = 'new', "
-            "static_findings = NULL, behaviour = NULL, claim_vs_behaviour = NULL, scanned_at = NULL"
+            f"""
+            UPDATE servers SET verdict = NULL, labels = '[]', status = 'new',
+                static_findings = NULL, behaviour = NULL, claim_vs_behaviour = NULL, scanned_at = NULL
+            WHERE id IN ({placeholders})
+            """,
+            demo_ids,
         )
