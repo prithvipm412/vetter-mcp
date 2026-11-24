@@ -8,7 +8,9 @@ purely for introspection; no tool is ever called from here.
 from __future__ import annotations
 
 import sys
+from contextlib import asynccontextmanager
 from dataclasses import dataclass
+from typing import AsyncIterator
 
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
@@ -49,3 +51,21 @@ async def list_server_tools(module: str, timeout_seconds: float = 10.0) -> list[
         )
         for tool in result.tools
     ]
+
+
+@asynccontextmanager
+async def open_server_session(
+    module: str, env: dict[str, str] | None = None
+) -> AsyncIterator[ClientSession]:
+    """Launch ``module`` as an MCP stdio server and yield a live session.
+
+    Unlike :func:`list_server_tools`, this keeps the subprocess alive for the
+    duration of the ``with`` block (one process for many tool calls) and
+    lets the caller pass a custom environment - used by the sandbox to run
+    the server inside a fake $HOME with a logging proxy and audit hook.
+    """
+    params = StdioServerParameters(command=sys.executable, args=["-m", module], env=env)
+    async with stdio_client(params) as (read, write):
+        async with ClientSession(read, write) as session:
+            await session.initialize()
+            yield session
