@@ -75,16 +75,20 @@ def get_connection(db_path: Path | None = None) -> Iterator[sqlite3.Connection]:
         conn.close()
 
 
+def _ensure_demo_rows(conn: sqlite3.Connection) -> None:
+    existing_ids = {row["id"] for row in conn.execute("SELECT id FROM servers")}
+    for entry in SERVERS:
+        if entry.id not in existing_ids:
+            conn.execute(
+                "INSERT INTO servers (id, name, verdict, labels, status) VALUES (?, ?, NULL, '[]', 'new')",
+                (entry.id, entry.name),
+            )
+
+
 def init_db(db_path: Path | None = None) -> None:
     with get_connection(db_path or config.DB_PATH) as conn:
         conn.executescript(_SCHEMA)
-        existing_ids = {row["id"] for row in conn.execute("SELECT id FROM servers")}
-        for entry in SERVERS:
-            if entry.id not in existing_ids:
-                conn.execute(
-                    "INSERT INTO servers (id, name, verdict, labels, status) VALUES (?, ?, NULL, '[]', 'new')",
-                    (entry.id, entry.name),
-                )
+        _ensure_demo_rows(conn)
 
 
 def _row_to_dict(row: sqlite3.Row) -> dict[str, Any]:
@@ -220,10 +224,17 @@ def reset_demo_state(db_path: Path | None = None) -> None:
     """Reset the 3 built-in demo servers (and their incidents) to the seed
     state. Deliberately scoped to just the demo ids, not any real server a
     user has imported via POST /api/import.
+
+    Recreates the schema and re-registers the demo rows first (both are
+    no-ops on a healthy database) so this is self-healing: it works even if
+    the underlying .db file was ever deleted or started out empty, with no
+    server restart required.
     """
     demo_ids = [entry.id for entry in SERVERS]
     placeholders = ",".join("?" for _ in demo_ids)
     with get_connection(db_path or config.DB_PATH) as conn:
+        conn.executescript(_SCHEMA)
+        _ensure_demo_rows(conn)
         conn.execute(f"DELETE FROM incidents WHERE server_id IN ({placeholders})", demo_ids)
         conn.execute(
             f"""

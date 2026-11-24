@@ -20,6 +20,7 @@ import time
 
 _LOG_PATH = os.environ.get("VETTER_AUDIT_LOG")
 _WATCHED = {"open", "socket.connect", "subprocess.Popen"}
+_in_hook = False
 
 
 def _safe(value):
@@ -34,14 +35,22 @@ def _safe(value):
 
 
 def _hook(event, args):
-    if event not in _WATCHED or not _LOG_PATH:
+    # Writing the log entry itself does an `open()`, which is one of the
+    # watched events - without this re-entrancy guard every real file open
+    # would recurse into this hook via its own logging call, blowing the
+    # recursion limit on every single open() in the sandboxed process.
+    global _in_hook
+    if _in_hook or event not in _WATCHED or not _LOG_PATH:
         return
+    _in_hook = True
     try:
         record = {"ts": time.time(), "event": event, "args": [_safe(a) for a in args]}
         with open(_LOG_PATH, "a", encoding="utf-8") as fh:
             fh.write(json.dumps(record) + "\\n")
     except Exception:
         pass
+    finally:
+        _in_hook = False
 
 
 if _LOG_PATH:

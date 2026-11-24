@@ -86,10 +86,14 @@ def approve_server(server_id: str, tools: list[ToolInfo], path: Path | None = No
 
 
 def reset_lock_file(path: Path | None = None) -> None:
-    """Wipe every approved baseline. Used by POST /api/demo/reset."""
+    """Wipe every approved baseline by deleting the lock file outright
+    (``_read_lock_file`` already treats a missing file as empty). Used by
+    POST /api/demo/reset.
+    """
     path = path or config.LOCK_FILE_PATH
     with _lock:
-        _write_lock_file(path, {})
+        path.unlink(missing_ok=True)
+        path.with_suffix(".tmp").unlink(missing_ok=True)
 
 
 def get_approved_snapshot(server_id: str, path: Path | None = None) -> dict[str, dict] | None:

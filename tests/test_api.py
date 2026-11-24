@@ -133,3 +133,22 @@ def test_demo_rugpull_toggle_endpoints_and_reset(isolated_paths, rugpull_marker)
         assert rows["weather_ok"]["status"] == "new"
         assert rows["weather_ok"]["verdict"] is None
         assert client.get("/api/incidents").json() == []
+
+
+def test_demo_reset_recreates_schema_if_db_file_went_missing(isolated_paths):
+    """Regression test: if the .db file is ever deleted out from under a
+    running backend (or simply never existed yet), POST /api/demo/reset must
+    recreate the schema and re-register the 3 demo servers itself - callers
+    shouldn't need to restart the server to recover from "no such table:
+    servers".
+    """
+    with _client(isolated_paths) as client:
+        isolated_paths["db"].unlink(missing_ok=True)
+
+        assert client.post("/api/demo/reset").json() == {"status": "reset"}
+        assert client.post("/api/demo/reset").json() == {"status": "reset"}
+
+        response = client.get("/api/servers")
+        assert response.status_code == 200
+        ids = {row["id"] for row in response.json()}
+        assert ids == {"weather_ok", "travel_overreach", "notes_rugpull"}
