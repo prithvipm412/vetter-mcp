@@ -8,9 +8,11 @@ from __future__ import annotations
 
 import json
 import sqlite3
+from collections.abc import Iterator
 from contextlib import contextmanager
+from datetime import UTC
 from pathlib import Path
-from typing import Any, Iterator
+from typing import Any
 
 from vetter import config
 from vetter.registry import SERVERS
@@ -80,8 +82,7 @@ def init_db(db_path: Path | None = None) -> None:
         for entry in SERVERS:
             if entry.id not in existing_ids:
                 conn.execute(
-                    "INSERT INTO servers (id, name, verdict, labels, status) "
-                    "VALUES (?, ?, NULL, '[]', 'new')",
+                    "INSERT INTO servers (id, name, verdict, labels, status) VALUES (?, ?, NULL, '[]', 'new')",
                     (entry.id, entry.name),
                 )
 
@@ -194,12 +195,12 @@ def log_incident(
     time: str | None = None,
     db_path: Path | None = None,
 ) -> None:
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     with get_connection(db_path or config.DB_PATH) as conn:
         conn.execute(
             "INSERT INTO incidents (server_id, time, type, tool, detail) VALUES (?, ?, ?, ?, ?)",
-            (server_id, time or datetime.now(timezone.utc).isoformat(), type_, tool, detail),
+            (server_id, time or datetime.now(UTC).isoformat(), type_, tool, detail),
         )
 
 

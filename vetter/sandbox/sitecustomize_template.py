@@ -12,7 +12,7 @@ the sandbox orchestrator. It never prints anything; a sandboxed server's
 stdout must stay pure MCP protocol output.
 """
 
-SITECUSTOMIZE_SOURCE = '''
+SITECUSTOMIZE_SOURCE = """
 import json
 import os
 import sys
@@ -46,4 +46,4 @@ def _hook(event, args):
 
 if _LOG_PATH:
     sys.addaudithook(_hook)
-'''
+"""

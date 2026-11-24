@@ -199,9 +199,7 @@ async def allow_server_changes(server_id: str) -> ServerSummary:
 
     fingerprint.approve_server(server_id, tools)
     db.set_status(server_id, "approved")
-    db.log_incident(
-        server_id, "reapproved_after_change", None, "baseline updated to the current tool definitions"
-    )
+    db.log_incident(server_id, "reapproved_after_change", None, "baseline updated to the current tool definitions")
     logger.info("server %s changes allowed; re-approved", server_id)
     return _to_summary(db.get_server(server_id))  # type: ignore[arg-type]
 
@@ -235,10 +233,15 @@ class ImportRequest(BaseModel):
     )
 
 
+_DEFAULT_IMPORT_REQUEST = ImportRequest()
+
+
 @app.post("/api/import")
-async def import_servers_endpoint(payload: ImportRequest = ImportRequest()) -> dict[str, Any]:
+async def import_servers_endpoint(payload: ImportRequest = _DEFAULT_IMPORT_REQUEST) -> dict[str, Any]:
     result = await importer.import_from_configs(payload.config_paths)
-    logger.info("import: %d server(s) discovered across %d config(s)", result["imported_count"], len(result["sources"]))
+    logger.info(
+        "import: %d server(s) discovered across %d config(s)", result["imported_count"], len(result["sources"])
+    )
     return result
 
 

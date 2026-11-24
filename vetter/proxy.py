@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import contextlib
 import json
 import sys
 import threading
@@ -64,15 +65,12 @@ class ProxyState:
         self.known = True
 
         blocked_names = set(result["changed_tools"]) | set(result["new_tools"])
-        self.allowed_tools = (
-            {t.name for t in tools} - blocked_names if result["approved"] else set()
-        )
+        self.allowed_tools = {t.name for t in tools} - blocked_names if result["approved"] else set()
 
         drifted = result["changed_tools"] or result["new_tools"] or result["missing_tools"]
         if result["approved"] and drifted:
             detail = (
-                f"changed={result['changed_tools']} new={result['new_tools']} "
-                f"missing={result['missing_tools']}"
+                f"changed={result['changed_tools']} new={result['new_tools']} missing={result['missing_tools']}"
             )
             db.log_incident(self.server_id, "drift_detected", None, detail)
             db.set_status(self.server_id, "paused_changed")
@@ -116,7 +114,7 @@ class StdioProxy:
         )
         try:
             result = await asyncio.wait_for(future, timeout=10.0)
-        except asyncio.TimeoutError:
+        except TimeoutError:
             _log("[vetter-proxy] internal tools/list refresh timed out")
             return
         finally:
@@ -248,10 +246,8 @@ def parse_args(argv: list[str]) -> tuple[str, list[str]]:
 def main() -> None:
     server_id, command = parse_args(sys.argv[1:])
     proxy = StdioProxy(server_id, command)
-    try:
+    with contextlib.suppress(KeyboardInterrupt):
         asyncio.run(proxy.run())
-    except KeyboardInterrupt:
-        pass
 
 
 if __name__ == "__main__":

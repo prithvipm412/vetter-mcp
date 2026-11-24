@@ -33,11 +33,10 @@ def _proxy_params(server_id: str, db_path: Path, lock_path: Path) -> StdioServer
 
 async def _call_through_proxy(server_id: str, db_path: Path, lock_path: Path, tool: str, arguments: dict):
     params = _proxy_params(server_id, db_path, lock_path)
-    async with stdio_client(params) as (read, write):
-        async with ClientSession(read, write) as session:
-            await session.initialize()
-            await session.list_tools()
-            return await session.call_tool(tool, arguments)
+    async with stdio_client(params) as (read, write), ClientSession(read, write) as session:
+        await session.initialize()
+        await session.list_tools()
+        return await session.call_tool(tool, arguments)
 
 
 @pytest.mark.asyncio

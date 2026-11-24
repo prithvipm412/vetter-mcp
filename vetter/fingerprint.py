@@ -12,7 +12,7 @@ from __future__ import annotations
 import hashlib
 import json
 import threading
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import TypedDict
 
@@ -61,9 +61,7 @@ def _write_lock_file(path: Path, data: dict) -> None:
     tmp_path.replace(path)
 
 
-def approve_server(
-    server_id: str, tools: list[ToolInfo], path: Path | None = None
-) -> dict[str, dict]:
+def approve_server(server_id: str, tools: list[ToolInfo], path: Path | None = None) -> dict[str, dict]:
     """Record the current fingerprint (and a description/schema snapshot) of
     every tool as the approved baseline. The snapshot - not just the hash -
     is kept so a later change can be diffed in plain text, not just flagged.
@@ -80,7 +78,7 @@ def approve_server(
     with _lock:
         data = _read_lock_file(path)
         data[server_id] = {
-            "approved_at": datetime.now(timezone.utc).isoformat(),
+            "approved_at": datetime.now(UTC).isoformat(),
             "tools": snapshot,
         }
         _write_lock_file(path, data)
@@ -117,9 +115,7 @@ def revoke_server(server_id: str, path: Path | None = None) -> bool:
         return True
 
 
-def verify_server(
-    server_id: str, tools: list[ToolInfo], path: Path | None = None
-) -> VerifyResult:
+def verify_server(server_id: str, tools: list[ToolInfo], path: Path | None = None) -> VerifyResult:
     """Compare live tool fingerprints against the approved baseline, if any."""
     path = path or config.LOCK_FILE_PATH
     with _lock:

@@ -6,7 +6,6 @@ what you see afterward in the dashboard matches exactly what this printed.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any
 
 from vetter import changes as changes_module
 from vetter import db, fingerprint

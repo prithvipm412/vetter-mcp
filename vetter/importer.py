@@ -18,12 +18,13 @@ from __future__ import annotations
 
 import json
 import re
+from datetime import UTC
 from pathlib import Path
 from typing import Any
 
 from vetter import db
-from vetter.mcp_client import MCPIntrospectionError
 from vetter import protect as protect_module
+from vetter.mcp_client import MCPIntrospectionError
 from vetter.registry import ServerEntry, guess_language
 from vetter.scan_service import scan_and_store
 
@@ -107,9 +108,9 @@ async def import_from_configs(
     happened. Never raises for a missing/invalid config file or a server
     that fails to start - those are reported per-item instead.
     """
-    from datetime import datetime, timezone
+    from datetime import datetime
 
-    imported_at = datetime.now(timezone.utc).isoformat()
+    imported_at = datetime.now(UTC).isoformat()
     candidate_paths = [
         protect_module.DEFAULT_CONFIG_PATH,
         *[Path(p) for p in (extra_config_paths or [])],

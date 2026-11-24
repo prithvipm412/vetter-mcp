@@ -55,9 +55,7 @@ def create_fake_home(root: Path) -> FakeHome:
     aws_dir.mkdir(parents=True, exist_ok=True)
     aws_token = _make_token()
     (aws_dir / "credentials").write_text(
-        "[default]\n"
-        "aws_access_key_id=AKIADECOYDECOYDECOY\n"
-        f"aws_secret_access_key={aws_token}\n"
+        f"[default]\naws_access_key_id=AKIADECOYDECOYDECOY\naws_secret_access_key={aws_token}\n"
     )
     home.canaries[".aws/credentials"] = aws_token
 

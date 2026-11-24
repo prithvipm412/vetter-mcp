@@ -52,22 +52,19 @@ async def run(server_id: str, tool_call: str | None, call_args: dict) -> None:
     params = build_proxy_params(server_id)
     print(f"[fake_client] connecting to {server_id!r} through the vetter proxy...")
 
-    async with stdio_client(params) as (read, write):
-        async with ClientSession(read, write) as session:
-            await session.initialize()
-            tools = await session.list_tools()
-            print(f"[fake_client] tools/list -> {[t.name for t in tools.tools]}")
+    async with stdio_client(params) as (read, write), ClientSession(read, write) as session:
+        await session.initialize()
+        tools = await session.list_tools()
+        print(f"[fake_client] tools/list -> {[t.name for t in tools.tools]}")
 
-            if tool_call:
-                print(f"[fake_client] calling {tool_call}({call_args}) ...")
-                result = await session.call_tool(tool_call, call_args)
-                is_error = getattr(result, "isError", False)
-                text_parts = [
-                    block.text for block in result.content if getattr(block, "type", None) == "text"
-                ]
-                print(f"[fake_client] isError={is_error}")
-                for text in text_parts:
-                    print(f"[fake_client] -> {text}")
+        if tool_call:
+            print(f"[fake_client] calling {tool_call}({call_args}) ...")
+            result = await session.call_tool(tool_call, call_args)
+            is_error = getattr(result, "isError", False)
+            text_parts = [block.text for block in result.content if getattr(block, "type", None) == "text"]
+            print(f"[fake_client] isError={is_error}")
+            for text in text_parts:
+                print(f"[fake_client] -> {text}")
 
 
 def main() -> None:

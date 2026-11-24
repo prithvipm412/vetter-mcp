@@ -11,9 +11,9 @@ nothing here is allowed to hang forever.
 from __future__ import annotations
 
 import os
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
-from typing import AsyncIterator
 
 import anyio
 from mcp import ClientSession, StdioServerParameters
@@ -57,10 +57,9 @@ async def list_server_tools(
     params = _params(command, env=merged_env)
     try:
         with anyio.fail_after(timeout_seconds):
-            async with stdio_client(params) as (read, write):
-                async with ClientSession(read, write) as session:
-                    await session.initialize()
-                    result = await session.list_tools()
+            async with stdio_client(params) as (read, write), ClientSession(read, write) as session:
+                await session.initialize()
+                result = await session.list_tools()
     except TimeoutError as exc:
         raise MCPIntrospectionError(f"{command} did not respond within {timeout_seconds}s") from exc
     except Exception as exc:  # noqa: BLE001 - surface any transport failure uniformly
@@ -92,8 +91,7 @@ async def open_server_session(
     caller's responsibility (the sandbox applies one per tool call).
     """
     params = _params(command, env=env)
-    async with stdio_client(params) as (read, write):
-        async with ClientSession(read, write) as session:
-            with anyio.fail_after(startup_timeout_seconds):
-                await session.initialize()
-            yield session
+    async with stdio_client(params) as (read, write), ClientSession(read, write) as session:
+        with anyio.fail_after(startup_timeout_seconds):
+            await session.initialize()
+        yield session

@@ -13,13 +13,11 @@ from __future__ import annotations
 
 import json
 import sys
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-DEFAULT_CONFIG_PATH = (
-    Path.home() / "Library" / "Application Support" / "Claude" / "claude_desktop_config.json"
-)
+DEFAULT_CONFIG_PATH = Path.home() / "Library" / "Application Support" / "Claude" / "claude_desktop_config.json"
 BACKUP_DIR_NAME = ".vetter-protect-backups"
 _WRAPPED_MARKER = "_vetter_wrapped"
 
@@ -109,7 +107,7 @@ def protect(config_path: Path | None = None) -> dict[str, Any]:
 
     backup_dir = _backup_dir(config_path)
     backup_dir.mkdir(parents=True, exist_ok=True)
-    timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
+    timestamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%S%fZ")
     backup_path = backup_dir / f"claude_desktop_config.{timestamp}.json"
     backup_path.write_text(original_text, encoding="utf-8")
 

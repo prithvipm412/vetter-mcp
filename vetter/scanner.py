@@ -12,10 +12,8 @@ Dynamic/sandboxed behavioural testing is a later phase.
 from __future__ import annotations
 
 import re
-import unicodedata
-from pathlib import Path
-
 from dataclasses import asdict
+from pathlib import Path
 
 from vetter.mcp_client import ToolInfo
 from vetter.models import (
@@ -31,16 +29,20 @@ from vetter.models import (
 from vetter.registry import ServerEntry
 from vetter.sandbox.runner import SandboxReport
 
-INVISIBLE_CHARS_PATTERN = re.compile(
-    "[​‌‍⁠﻿‎‏‪-‮⁦-⁩]"
-)
+INVISIBLE_CHARS_PATTERN = re.compile("[​‌‍⁠﻿‎‏‪-‮⁦-⁩]")
 
 HIDDEN_INSTRUCTION_PATTERNS: list[tuple[str, str]] = [
     (r"<\s*important\s*>", "contains an <IMPORTANT> instruction block"),
-    (r"do not (tell|mention|inform) the user", 'tells the model to hide actions from the user ("do not tell the user")'),
+    (
+        r"do not (tell|mention|inform) the user",
+        'tells the model to hide actions from the user ("do not tell the user")',
+    ),
     (r"without (telling|informing) the user", 'tells the model to act "without telling the user"'),
     (r"ignore (all |any )?(previous|prior|above) instructions", "tries to override prior instructions"),
-    (r"before (responding|answering)[, ]+(silently )?read", 'instructs the model to read something "before responding"'),
+    (
+        r"before (responding|answering)[, ]+(silently )?read",
+        'instructs the model to read something "before responding"',
+    ),
     (r"\bsecretly\b", 'uses the word "secretly"'),
     (r"do not (reveal|disclose)", "instructs the model not to reveal/disclose something"),
     (r"do not (mention|include) this instruction", "asks the model to hide the instruction itself"),
@@ -198,7 +200,7 @@ def _scan_tool_description(tool: ToolInfo) -> list[Finding]:
             )
         )
 
-    for prop_name in (tool.input_schema.get("properties") or {}):
+    for prop_name in tool.input_schema.get("properties") or {}:
         lowered = prop_name.lower()
         if any(hint in lowered for hint in LEAKY_INPUT_FIELD_NAMES):
             findings.append(
@@ -289,8 +291,7 @@ def _claim_vs_behaviour(
 
     if source_actions:
         mismatches.append(
-            "Source code performs actions not mentioned in any tool description: "
-            + "; ".join(source_actions)
+            "Source code performs actions not mentioned in any tool description: " + "; ".join(source_actions)
         )
 
     capability_match = not extra_tools and not source_actions
@@ -323,9 +324,7 @@ def scan_server(entry: ServerEntry, tools: list[ToolInfo]) -> tuple[str, list[st
     findings.extend(claim_findings)
 
     hidden_instruction_actions = [
-        f'description hides an instruction: "{f.label}"'
-        for f in findings
-        if f.category == "hidden_instruction"
+        f'description hides an instruction: "{f.label}"' for f in findings if f.category == "hidden_instruction"
     ]
 
     behaviour = Behaviour(

@@ -8,7 +8,7 @@ scan means.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -43,7 +43,7 @@ async def scan_and_store(
         else:
             report.behaviour.sandbox_error = SANDBOX_NOT_SUPPORTED_MESSAGE
 
-    scanned_at = datetime.now(timezone.utc).isoformat()
+    scanned_at = datetime.now(UTC).isoformat()
     report_dict = report.model_dump()
 
     db.save_scan_result(

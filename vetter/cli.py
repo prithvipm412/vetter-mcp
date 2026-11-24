@@ -223,7 +223,11 @@ def cmd_demo(args: argparse.Namespace) -> int:
             "[green]PASS[/]" if step.passed else "[bold red]FAIL[/]",
         )
     console.print(table)
-    console.print("[bold green]all scenarios behaved as expected[/]" if all_passed else "[bold red]one or more scenarios did not behave as expected[/]")
+    console.print(
+        "[bold green]all scenarios behaved as expected[/]"
+        if all_passed
+        else "[bold red]one or more scenarios did not behave as expected[/]"
+    )
     return 0 if all_passed else 1
 
 
@@ -248,9 +252,7 @@ def build_parser() -> argparse.ArgumentParser:
     p_verify.add_argument("server_id")
     p_verify.set_defaults(func=cmd_verify)
 
-    sub.add_parser(
-        "proxy", help="runtime proxy: vetter proxy --server <id> -- <command...>", add_help=False
-    )
+    sub.add_parser("proxy", help="runtime proxy: vetter proxy --server <id> -- <command...>", add_help=False)
 
     p_protect = sub.add_parser("protect", help="wrap every server in the Claude Desktop config")
     p_protect.add_argument("--undo", action="store_true", help="restore the most recent backup instead")

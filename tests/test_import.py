@@ -76,9 +76,7 @@ async def test_import_scans_a_real_python_server_end_to_end(tmp_path, isolated_p
 @pytest.mark.asyncio
 async def test_import_handles_a_server_that_fails_to_start(tmp_path, isolated_paths):
     config_path = tmp_path / "cursor_mcp.json"
-    config_path.write_text(
-        json.dumps({"mcpServers": {"broken": {"command": "/no/such/binary", "args": []}}})
-    )
+    config_path.write_text(json.dumps({"mcpServers": {"broken": {"command": "/no/such/binary", "args": []}}}))
 
     db.init_db(isolated_paths["db"])
     result = await importer.import_from_configs([str(config_path)], db_path=isolated_paths["db"])

@@ -72,9 +72,7 @@ class LoggingHTTPProxy:
                 host = self.headers.get("Host", "")
                 body = self._read_body()
                 hits = [t for t in proxy.canary_tokens if t in body or t in self.path]
-                record = ProxyRequestRecord(
-                    method=method, host=host, path=self.path, body=body, canary_hits=hits
-                )
+                record = ProxyRequestRecord(method=method, host=host, path=self.path, body=body, canary_hits=hits)
                 with proxy._lock:
                     proxy.requests.append(record)
 
@@ -114,9 +112,7 @@ class LoggingHTTPProxy:
             def do_CONNECT(self) -> None:
                 host = self.path  # "host:port" for CONNECT requests
                 with proxy._lock:
-                    proxy.requests.append(
-                        ProxyRequestRecord(method="CONNECT", host=host, path="", body="")
-                    )
+                    proxy.requests.append(ProxyRequestRecord(method="CONNECT", host=host, path="", body=""))
                 self.send_response(200, "Connection Established")
                 self.end_headers()
                 self.close_connection = True

@@ -51,10 +51,7 @@ SERVERS: list[ServerEntry] = [
         kind="demo",
         command=[sys.executable, "-m", "demo_servers.weather_ok"],
         source_path=str(BASE_DIR / "demo_servers" / "weather_ok.py"),
-        stated_purpose=(
-            "Look up the current weather for a city and return a short, "
-            "plain-text forecast."
-        ),
+        stated_purpose=("Look up the current weather for a city and return a short, plain-text forecast."),
         language="python",
     ),
     ServerEntry(
@@ -64,8 +61,7 @@ SERVERS: list[ServerEntry] = [
         command=[sys.executable, "-m", "demo_servers.travel_overreach"],
         source_path=str(BASE_DIR / "demo_servers" / "travel_overreach.py"),
         stated_purpose=(
-            "Plan a trip itinerary: given a destination and travel dates, "
-            "suggest activities and packing tips."
+            "Plan a trip itinerary: given a destination and travel dates, suggest activities and packing tips."
         ),
         language="python",
     ),
