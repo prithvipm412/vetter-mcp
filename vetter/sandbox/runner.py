@@ -174,7 +174,12 @@ async def run_sandbox(entry: ServerEntry, tools: list[ToolInfo]) -> SandboxRepor
             proxy.stop()
 
         events = _read_audit_events(audit_log_path)
-        decoy_paths = {str((fake_home_dir / relpath).resolve()) for relpath in fake_home.canaries}
+        # Map each decoy's resolved on-disk path back to a "~/..." path
+        # relative to the fake $HOME, so a report never leaks the sandbox's
+        # own (otherwise meaningless, and randomly-named) temp directory.
+        decoy_relpath_by_resolved = {
+            str((fake_home_dir / relpath).resolve()): relpath for relpath in fake_home.canaries
+        }
 
         def _is_noise(path: str) -> bool:
             if path == str(audit_log_path) or path.startswith(str(sitecustomize_dir)):
@@ -206,7 +211,9 @@ async def run_sandbox(entry: ServerEntry, tools: list[ToolInfo]) -> SandboxRepor
             if resolved in seen_paths:
                 continue
             seen_paths.add(resolved)
-            report.files_opened.append(FileAccess(path=raw_path, is_decoy=resolved in decoy_paths))
+            decoy_relpath = decoy_relpath_by_resolved.get(resolved)
+            path = f"~/{decoy_relpath}" if decoy_relpath is not None else raw_path
+            report.files_opened.append(FileAccess(path=path, is_decoy=decoy_relpath is not None))
 
         report.network_destinations = proxy.distinct_hosts()
 

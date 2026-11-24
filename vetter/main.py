@@ -159,6 +159,7 @@ async def approve_server_endpoint(server_id: str) -> ServerSummary:
 
     fingerprint.approve_server(server_id, tools)
     db.set_status(server_id, "approved")
+    db.log_incident(server_id, "approved", None, "server approved; current tool definitions fingerprinted")
     logger.info("server %s approved", server_id)
     return _to_summary(db.get_server(server_id))  # type: ignore[arg-type]
 
@@ -167,6 +168,7 @@ async def approve_server_endpoint(server_id: str) -> ServerSummary:
 def block_server_endpoint(server_id: str) -> ServerSummary:
     _require_row(server_id)
     db.set_status(server_id, "blocked")
+    db.log_incident(server_id, "blocked", None, "server blocked")
     logger.info("server %s blocked", server_id)
     return _to_summary(db.get_server(server_id))  # type: ignore[arg-type]
 
@@ -176,6 +178,7 @@ def revoke_server_endpoint(server_id: str) -> ServerSummary:
     _require_row(server_id)
     fingerprint.revoke_server(server_id)
     db.set_status(server_id, "new")
+    db.log_incident(server_id, "revoked", None, "approval revoked")
     logger.info("server %s approval revoked", server_id)
     return _to_summary(db.get_server(server_id))  # type: ignore[arg-type]
 

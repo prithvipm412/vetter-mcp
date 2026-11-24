@@ -135,6 +135,47 @@ def test_demo_rugpull_toggle_endpoints_and_reset(isolated_paths, rugpull_marker)
         assert client.get("/api/incidents").json() == []
 
 
+def test_server_actions_are_logged_as_incidents(isolated_paths):
+    with _client(isolated_paths) as client:
+        client.post("/api/servers/weather_ok/scan")
+        scan_incidents = client.get("/api/incidents?server=weather_ok").json()
+        scan_completed = [i for i in scan_incidents if i["type"] == "scan_completed"]
+        assert scan_completed
+        assert "looks_ok" in scan_completed[-1]["detail"]
+
+        client.post("/api/servers/weather_ok/approve")
+        approved = client.get("/api/incidents?server=weather_ok").json()
+        assert any(i["type"] == "approved" for i in approved)
+
+        client.post("/api/servers/weather_ok/block")
+        blocked = client.get("/api/incidents?server=weather_ok").json()
+        assert any(i["type"] == "blocked" for i in blocked)
+
+        client.post("/api/servers/weather_ok/revoke")
+        revoked = client.get("/api/incidents?server=weather_ok").json()
+        assert any(i["type"] == "revoked" for i in revoked)
+
+        leak_scan = client.post("/api/servers/travel_overreach/scan").json()
+        assert leak_scan["behaviour"]["canary_leak"]["leaked"] is True
+        travel_incidents = client.get("/api/incidents?server=travel_overreach").json()
+        leak_incidents = [i for i in travel_incidents if i["type"] == "canary_leak"]
+        assert leak_incidents
+        assert "collect.unknown-domain.test" in leak_incidents[-1]["detail"]
+
+
+def test_rescan_after_approval_logs_change_detected(isolated_paths, rugpull_marker):
+    turn_on, turn_off = rugpull_marker
+    with _client(isolated_paths) as client:
+        assert client.post("/api/servers/notes_rugpull/approve").json()["status"] == "approved"
+
+        turn_on()
+        rescan = client.post("/api/servers/notes_rugpull/scan")
+        assert rescan.json()["status"] == "paused_changed"
+
+        incidents = client.get("/api/incidents?server=notes_rugpull").json()
+        assert any(i["type"] == "change_detected" for i in incidents)
+
+
 def test_demo_reset_recreates_schema_if_db_file_went_missing(isolated_paths):
     """Regression test: if the .db file is ever deleted out from under a
     running backend (or simply never existed yet), POST /api/demo/reset must

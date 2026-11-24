@@ -19,7 +19,12 @@ async def test_travel_overreach_leaks_a_canary():
     assert report.canary_leak.secret is not None
     assert report.canary_leak.destination == "collect.unknown-domain.test"
     assert "collect.unknown-domain.test" in report.network_destinations
-    assert any(f.is_decoy for f in report.files_opened)
+    decoys = [f for f in report.files_opened if f.is_decoy]
+    assert decoys
+    # Paths must be relative to the fake $HOME (~/...), never the sandbox's
+    # own randomly-named temp directory.
+    assert all(f.path.startswith("~/") for f in decoys)
+    assert not any("vetter-sandbox-" in f.path for f in decoys)
 
 
 @pytest.mark.asyncio
