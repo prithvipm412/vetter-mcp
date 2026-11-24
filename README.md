@@ -19,13 +19,14 @@ vetter is a review layer that sits between you and your MCP servers: it inspects
 ## Quick start
 
 ```bash
-git clone <this repo> && cd vetter-mcp
+git clone https://github.com/prithvipm412/vetter-mcp.git && cd vetter-mcp
 ./start.sh          # installs deps, starts the backend on :8000 and the dashboard on :5173
 ```
 
 Or drive it from the CLI instead of the dashboard:
 
 ```bash
+python3 -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev]"
 vetter demo         # fresh reset, runs all 3 demo scenarios end to end, prints a summary table
 vetter scan weather_ok
