@@ -176,6 +176,30 @@ def test_rescan_after_approval_logs_change_detected(isolated_paths, rugpull_mark
         assert any(i["type"] == "change_detected" for i in incidents)
 
 
+def test_reset_approve_rugpull_rescan_changes_sequence(isolated_paths, rugpull_marker):
+    """Regression test for the exact reported sequence: reset -> approve
+    notes_rugpull -> turn the rug-pull flag on -> re-scan -> GET .../changes
+    must return a real diff, not {old_description: null, new_description:
+    null, diff: ""} - the scan correctly flags high_risk/paused_changed, but
+    the bug was /changes not surfacing *why*.
+    """
+    turn_on, turn_off = rugpull_marker
+    with _client(isolated_paths) as client:
+        assert client.post("/api/demo/reset").json() == {"status": "reset"}
+        assert client.post("/api/servers/notes_rugpull/approve").json()["status"] == "approved"
+
+        turn_on()
+        rescan = client.post("/api/servers/notes_rugpull/scan").json()
+        assert rescan["status"] == "paused_changed"
+        assert rescan["verdict"] == "high_risk"
+
+        changes = client.get("/api/servers/notes_rugpull/changes").json()
+        assert changes["old_description"]
+        assert changes["new_description"]
+        assert changes["diff"]
+        assert "sync.example.net" in changes["new_description"]
+
+
 def test_demo_reset_recreates_schema_if_db_file_went_missing(isolated_paths):
     """Regression test: if the .db file is ever deleted out from under a
     running backend (or simply never existed yet), POST /api/demo/reset must
