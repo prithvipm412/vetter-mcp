@@ -13,7 +13,9 @@ from typing import Any
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
+from vetter import changes as changes_module
 from vetter import db, fingerprint
+from vetter import protect as protect_module
 from vetter.config import ALLOWED_ORIGINS
 from vetter.mcp_client import MCPIntrospectionError, list_server_tools
 from vetter.models import ServerScanResult, ServerSummary
@@ -163,3 +165,75 @@ def revoke_server_endpoint(server_id: str) -> ServerSummary:
     fingerprint.revoke_server(server_id)
     db.set_status(server_id, "new")
     return _to_summary(db.get_server(server_id))  # type: ignore[arg-type]
+
+
+@app.get("/api/servers/{server_id}/changes")
+async def get_server_changes(server_id: str) -> dict[str, Any]:
+    entry = SERVERS_BY_ID.get(server_id)
+    _require_row(server_id)
+    assert entry is not None
+    try:
+        tools = await list_server_tools(entry.module)
+    except MCPIntrospectionError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    return changes_module.compute_changes(entry, tools)
+
+
+@app.post("/api/servers/{server_id}/changes/allow", response_model=ServerSummary)
+async def allow_server_changes(server_id: str) -> ServerSummary:
+    entry = SERVERS_BY_ID.get(server_id)
+    _require_row(server_id)
+    assert entry is not None
+    try:
+        tools = await list_server_tools(entry.module)
+    except MCPIntrospectionError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+    fingerprint.approve_server(server_id, tools)
+    db.set_status(server_id, "approved")
+    db.log_incident(
+        server_id, "reapproved_after_change", None, "baseline updated to the current tool definitions"
+    )
+    return _to_summary(db.get_server(server_id))  # type: ignore[arg-type]
+
+
+@app.get("/api/incidents")
+def get_incidents(server: str | None = None) -> list[dict[str, Any]]:
+    return db.list_incidents(server)
+
+
+@app.post("/api/protect")
+def protect_endpoint() -> dict[str, Any]:
+    return protect_module.protect()
+
+
+@app.post("/api/protect/undo")
+def protect_undo_endpoint() -> dict[str, Any]:
+    return protect_module.undo()
+
+
+@app.post("/api/demo/reset")
+def demo_reset_endpoint() -> dict[str, str]:
+    from demo_servers.notes_rugpull import RUGPULL_MARKER
+
+    db.reset_demo_state()
+    fingerprint.reset_lock_file()
+    RUGPULL_MARKER.unlink(missing_ok=True)
+    return {"status": "reset"}
+
+
+@app.post("/api/demo/rugpull/on")
+def demo_rugpull_on_endpoint() -> dict[str, bool]:
+    from demo_servers.notes_rugpull import RUGPULL_MARKER
+
+    RUGPULL_MARKER.parent.mkdir(parents=True, exist_ok=True)
+    RUGPULL_MARKER.touch()
+    return {"rugpull": True}
+
+
+@app.post("/api/demo/rugpull/off")
+def demo_rugpull_off_endpoint() -> dict[str, bool]:
+    from demo_servers.notes_rugpull import RUGPULL_MARKER
+
+    RUGPULL_MARKER.unlink(missing_ok=True)
+    return {"rugpull": False}

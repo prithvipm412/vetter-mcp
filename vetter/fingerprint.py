@@ -87,6 +87,13 @@ def approve_server(
     return snapshot
 
 
+def reset_lock_file(path: Path | None = None) -> None:
+    """Wipe every approved baseline. Used by POST /api/demo/reset."""
+    path = path or config.LOCK_FILE_PATH
+    with _lock:
+        _write_lock_file(path, {})
+
+
 def get_approved_snapshot(server_id: str, path: Path | None = None) -> dict[str, dict] | None:
     """Return the approved {tool_name: {fingerprint, description, input_schema}}
     snapshot for a server, or None if it has never been approved.
