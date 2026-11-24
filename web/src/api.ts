@@ -14,7 +14,8 @@ export type Incident = { time: string; type: string; tool: string | null; detail
 export type ConfigChange = { server: string; before: { command?: string; args?: string[] }; after: { command?: string; args?: string[] } };
 export type ProtectResult = { status: string; message?: string; path?: string; changed?: ConfigChange[] };
 export type ImportedTool = { id?: string; name: string; sandbox_supported?: boolean; sandbox?: string; language?: string; verdict?: Verdict; status?: Status; [key: string]: unknown };
-export type ImportResult = { tools?: ImportedTool[]; servers?: ImportedTool[]; imported_tools?: ImportedTool[]; count?: number; found?: number; imported_count?: number; [key: string]: unknown };
+export type ImportSource = { path: string; found: boolean; servers_imported: string[] };
+export type ImportResult = { tools?: ImportedTool[]; servers?: ImportedTool[]; imported_tools?: ImportedTool[]; sources?: ImportSource[]; count?: number; found?: number; imported_count?: number; [key: string]: unknown };
 
 const base = import.meta.env.VITE_API_URL ?? 'http://localhost:8000';
 const mock = import.meta.env.VITE_USE_MOCK === 'true';
