@@ -303,9 +303,49 @@ def _claim_vs_behaviour(
     return claim, extra_tools, findings
 
 
+def _friendly_label(finding: Finding) -> str:
+    """Map a technical Finding to a short, plain-language phrase fit for a
+    non-developer skimming the server list (e.g. "Can read your SSH keys").
+    The technical label/detail stay untouched in static_findings on the
+    per-server detail endpoint - this is only for the summary list's labels.
+    """
+    text = f"{finding.label} {finding.detail}".lower()
+
+    if finding.category == "hidden_instruction":
+        return "Hidden instructions to the AI"
+    if finding.category == "invisible_unicode":
+        return "Hides invisible text in its description"
+    if finding.category == "sensitive_path":
+        if "ssh" in text or "private key" in text or ".pem" in text:
+            return "Can read your SSH keys"
+        if "password" in text or "shadow" in text:
+            return "Can read your passwords file"
+        if "aws" in text or "credentials" in text:
+            return "Can read your cloud credentials"
+        if ".env" in text:
+            return "Can read your secrets file"
+        return "Can read sensitive files on your computer"
+    if finding.category == "external_url_in_description":
+        return "Can contact unknown servers"
+    if finding.category == "leaky_input_field":
+        return "Asks you to type in a password or key"
+    if finding.category == "undeclared_capability":
+        name = (finding.tool_name or "").lower()
+        if any(hint in name for hint in ("mail", "inbox")):
+            return "Can access your email"
+        if "contact" in name:
+            return "Can access your contacts"
+        if any(hint in name for hint in ("send", "upload", "post", "forward", "exfil", "sync")):
+            return "Can send your data elsewhere"
+        if any(hint in name for hint in ("ssh", "credential", "password")):
+            return "Can access sensitive credentials"
+        return "Does something it never told you about"
+    return "Flagged by the static scan"
+
+
 def _verdict_from_findings(findings: list[Finding]) -> tuple[str, list[str]]:
     severities = {f.severity for f in findings}
-    labels = sorted({f.label for f in findings})
+    labels = sorted({_friendly_label(f) for f in findings})
     if "high" in severities:
         return "high_risk", labels
     if "medium" in severities:
@@ -361,7 +401,7 @@ def merge_sandbox_results(
             "Live sandbox test confirmed exfiltration: a canary secret from "
             f"{sandbox.canary_leak.secret} was sent to {sandbox.canary_leak.destination}."
         )
-        labels.append("Sandbox confirmed a canary secret was exfiltrated")
+        labels.append("Actually sent your data to an outside server")
         verdict = "high_risk"
 
     decoy_files = [f.path for f in sandbox.files_opened if f.is_decoy]
@@ -370,7 +410,7 @@ def merge_sandbox_results(
             "Live sandbox test showed the server reading sensitive decoy files "
             f"({', '.join(decoy_files)}) even though no exfiltration was observed."
         )
-        labels.append("Sandbox observed access to decoy secret files")
+        labels.append("Opened sensitive files when tested")
         if verdict == "looks_ok":
             verdict = "review"
 

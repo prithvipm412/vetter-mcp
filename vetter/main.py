@@ -23,7 +23,7 @@ from vetter.config import ALLOWED_ORIGINS
 from vetter.logging_config import configure_logging
 from vetter.mcp_client import MCPIntrospectionError, list_server_tools
 from vetter.models import ServerScanResult, ServerSummary
-from vetter.registry import SERVERS_BY_ID
+from vetter.registry import SERVERS_BY_ID, friendly_name_for
 from vetter.scan_service import scan_and_store
 
 logger = configure_logging()
@@ -105,9 +105,11 @@ def _require_row(server_id: str) -> dict[str, Any]:
 
 
 def _to_summary(row: dict[str, Any]) -> ServerSummary:
+    entry = server_lookup.get_entry(row["id"])
     return ServerSummary(
         id=row["id"],
         name=row["name"],
+        friendly_name=friendly_name_for(entry) if entry is not None else row["name"],
         verdict=row["verdict"],
         labels=row["labels"],
         status=row["status"],
@@ -131,11 +133,12 @@ def get_server_detail(server_id: str) -> dict[str, Any]:
 
 @app.post("/api/servers/{server_id}/scan", response_model=ServerScanResult)
 async def scan_server_endpoint(server_id: str) -> ServerScanResult:
-    _require_entry(server_id)
+    entry = _require_entry(server_id)
     row = await _scan_and_store(server_id)
     return ServerScanResult(
         id=row["id"],
         name=row["name"],
+        friendly_name=friendly_name_for(entry),
         verdict=row["verdict"],
         labels=row["labels"],
         status=row["status"],

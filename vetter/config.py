@@ -40,7 +40,7 @@ LOCK_FILE_PATH = (
     Path(os.environ["VETTER_LOCK_PATH"]) if "VETTER_LOCK_PATH" in os.environ else BASE_DIR / "vetter-lock.json"
 )
 
-_DEFAULT_CORS_ORIGINS = "http://localhost:5173"
+_DEFAULT_CORS_ORIGINS = "http://localhost:5173,http://localhost:5174"
 ALLOWED_ORIGINS = [
     origin.strip()
     for origin in os.environ.get("VETTER_CORS_ORIGINS", _DEFAULT_CORS_ORIGINS).split(",")

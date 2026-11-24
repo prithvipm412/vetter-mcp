@@ -77,3 +77,19 @@ SERVERS: list[ServerEntry] = [
 ]
 
 SERVERS_BY_ID: dict[str, ServerEntry] = {entry.id: entry for entry in SERVERS}
+
+FRIENDLY_NAMES: dict[str, str] = {
+    "weather_ok": "Weather",
+    "travel_overreach": "Travel Planner",
+    "notes_rugpull": "Notes Saver",
+}
+
+
+def friendly_name_for(entry: ServerEntry) -> str:
+    """A short, human-facing name for the server list (id stays the stable
+    identifier everywhere else). Known demo servers get a curated name;
+    anything else (imported servers) gets its raw name title-cased.
+    """
+    if entry.id in FRIENDLY_NAMES:
+        return FRIENDLY_NAMES[entry.id]
+    return entry.name.replace("_", " ").replace("-", " ").strip().title() or entry.id

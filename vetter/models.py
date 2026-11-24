@@ -69,6 +69,7 @@ class ScanReport(BaseModel):
 class ServerSummary(BaseModel):
     id: str
     name: str
+    friendly_name: str
     verdict: Verdict | None
     labels: list[str]
     status: Status
