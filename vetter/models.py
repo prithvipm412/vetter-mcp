@@ -52,6 +52,7 @@ class Behaviour(BaseModel):
     canary_leak: CanaryLeak | None = None
     tool_calls: list[ToolCallOutcome] = []
     sandbox_error: str | None = None
+    sandbox_mode: Literal["docker", "lite"] | None = None
 
 
 class ClaimVsBehaviour(BaseModel):
@@ -79,3 +80,4 @@ class ServerScanResult(ServerSummary):
     static_findings: list[Finding]
     behaviour: Behaviour
     claim_vs_behaviour: ClaimVsBehaviour
+    sandbox_mode: Literal["docker", "lite"] | None = None

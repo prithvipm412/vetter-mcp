@@ -12,7 +12,7 @@ vetter is a review layer that sits between you and your MCP servers: it inspects
 ![architecture](docs/architecture.png)
 
 1. **Static scan** — reads every tool's name, description and input schema (and source code, when available) looking for hidden instructions, invisible Unicode, sensitive file paths, leaky input fields, and a declared-purpose-vs-capability mismatch.
-2. **Sandbox run** (Python servers today) — launches the server with a fake `$HOME` seeded with uniquely-tagged decoy secrets, an audit hook watching file/network/subprocess activity, and a local logging HTTP(S) proxy that never reaches the real internet. Every tool is called once with harmless sample arguments; if a decoy secret shows up on the wire, that's a canary leak.
+2. **Sandbox run** — launches the server in Docker (`node:20-slim` for Node/npx, `python:3.12-slim` for Python) with a fake `$HOME`, decoy secrets, `strace` file/network tracing and a logging proxy. Without Docker, Python uses the lite sandbox. Every tool is called once with harmless sample arguments; if a decoy secret shows up on the wire, that's a canary leak.
 3. **Fingerprinting** — approving a server snapshots the `{name, description, input_schema}` of every tool it advertises (SHA-256 + the full snapshot) into `vetter-lock.json`.
 4. **Runtime proxy** — `vetter proxy` sits between your assistant and the real server, re-checks the fingerprint on every `tools/list` and `list_changed` notification, and blocks `tools/call` for anything that changed since approval, logging an incident instead of silently letting it through.
 
@@ -41,7 +41,7 @@ Copy `.env.example` to `.env` to override the DB path, lock file path, CORS orig
 | Command | What it does |
 |---|---|
 | `vetter scan [ids...] [--no-sandbox]` | Static-scan (and sandbox, unless skipped) one or more servers; defaults to every known server. |
-| `vetter sandbox <id>` | Run only the lite sandbox for one server and print what it touched. |
+| `vetter sandbox <id>` | Run the available sandbox for one server and print what it touched. |
 | `vetter approve <id>` | Fingerprint and approve a server's current tools. |
 | `vetter verify <id>` | Compare a server's live tools against its approved baseline. |
 | `vetter proxy --server <id> -- <command...>` | Run the runtime protection proxy in front of a real server command. |
@@ -55,15 +55,14 @@ See [API.md](API.md) for the full backend ↔ frontend contract, including `/api
 
 ## vetter vs. MCP-Scan
 
-[MCP-Scan](https://github.com/invariantlabs-ai/mcp-scan) is a static scanner for MCP tool definitions — it's fast, requires nothing running, and is a good first pass. vetter does that same static pass, then goes further: it actually *runs* each tool in an isolated sandbox with decoy secrets to catch behavior a description alone can't show (a tool that reads `~/.ssh` or phones home, regardless of what it says it does), and its runtime proxy keeps watching after approval, so a tool that changes its description post-approval gets paused instead of silently trusted. The trade-off is cost: the sandbox run is slower than a pure static scan, and today it only covers Python servers.
+[MCP-Scan](https://github.com/invariantlabs-ai/mcp-scan) is a static scanner for MCP tool definitions — it's fast, requires nothing running, and is a good first pass. vetter does that same static pass, then goes further: it actually *runs* each tool in an isolated sandbox with decoy secrets to catch behavior a description alone can't show (a tool that reads `~/.ssh` or phones home, regardless of what it says it does), and its runtime proxy keeps watching after approval, so a tool that changes its description post-approval gets paused instead of silently trusted. The trade-off is cost: the sandbox run is slower than a pure static scan, and Docker image setup can take time.
 
 ## Limitations
 
-vetter reduces risk and gives you evidence — it can't prove a tool is safe. A sandboxed run exercises each tool once with sample arguments; a server that behaves differently under real arguments, or that only misbehaves on some inputs, won't be caught. Static analysis can miss obfuscated or dynamically-generated malicious code. The sandbox audits file/network/subprocess activity but isn't a hard security boundary (it doesn't use OS-level isolation like containers or VMs). Non-Python servers today only get the static scan.
+vetter reduces risk and gives you evidence — it can't prove a tool is safe. A sandboxed run exercises each tool once with sample arguments; a server that behaves differently under real arguments, or that only misbehaves on some inputs, won't be caught. Static analysis can miss obfuscated or dynamically-generated malicious code. Lite mode is not a hard security boundary. Docker mode isolates the process and restricts direct network egress; HTTPS proxy tunnels are logged by destination, while encrypted contents cannot be inspected.
 
 ## Roadmap
 
-- Docker-based sandbox so any language gets the same dynamic analysis Python does today
 - Community reputation/signing for commonly-used MCP servers
 - Approval expiry, so a stale approval doesn't stay trusted forever
 

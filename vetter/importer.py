@@ -155,7 +155,7 @@ async def import_from_configs(
                         "language": entry.language,
                         "verdict": row["verdict"],
                         "status": row["status"],
-                        "sandbox": "ran" if entry.language == "python" else "not supported yet (static scan only)",
+                        "sandbox": (row.get("behaviour") or {}).get("sandbox_mode") or "not run",
                         "error": None,
                     }
                 )

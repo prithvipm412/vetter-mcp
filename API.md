@@ -23,6 +23,8 @@ Base URL: http://localhost:8000
 **verdict:** `looks_ok` | `review` | `high_risk`
 **status:** `new` | `approved` | `blocked` | `paused_changed`
 
+The scan response includes `sandbox_mode` (`docker` or `lite`) at top level and in `behaviour`. Docker is used when available; otherwise Python falls back to lite mode. Imported Node/npx and Python servers run dynamically in Docker.
+
 **name** is the server's raw/technical name (e.g. `weather-ok`). **friendly_name**
 is a short human-facing name for the same server (e.g. `Weather`) — use it for
 display; **id** is the stable identifier to use in every other call and never

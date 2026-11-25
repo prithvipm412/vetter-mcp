@@ -145,6 +145,7 @@ async def scan_server_endpoint(server_id: str) -> ServerScanResult:
         static_findings=row["static_findings"],
         behaviour=row["behaviour"],
         claim_vs_behaviour=row["claim_vs_behaviour"],
+        sandbox_mode=(row["behaviour"] or {}).get("sandbox_mode"),
     )
 
 

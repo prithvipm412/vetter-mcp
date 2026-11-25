@@ -47,6 +47,7 @@ class CanaryLeak:
 
 @dataclass
 class SandboxReport:
+    sandbox_mode: str = "lite"
     files_opened: list[FileAccess] = field(default_factory=list)
     network_destinations: list[str] = field(default_factory=list)
     canary_leak: CanaryLeak = field(default_factory=lambda: CanaryLeak(leaked=False))
@@ -117,9 +118,12 @@ def _build_sandbox_env(
     }
 
 
-async def run_sandbox(entry: ServerEntry, tools: list[ToolInfo]) -> SandboxReport:
+async def run_sandbox(
+    entry: ServerEntry, tools: list[ToolInfo], *, command: list[str] | None = None, mode: str = "lite"
+) -> SandboxReport:
     """Launch ``entry`` inside the lite sandbox and exercise every tool once."""
     report = SandboxReport()
+    report.sandbox_mode = mode
 
     with tempfile.TemporaryDirectory(prefix="vetter-sandbox-") as scratch:
         scratch_path = Path(scratch)
@@ -136,11 +140,14 @@ async def run_sandbox(entry: ServerEntry, tools: list[ToolInfo]) -> SandboxRepor
         audit_log_path.touch()
 
         proxy = LoggingHTTPProxy(canary_tokens=set(fake_home.canaries.values()))
-        port = proxy.start()
-        env = _build_sandbox_env(fake_home_dir, sitecustomize_dir, audit_log_path, f"http://127.0.0.1:{port}")
+        port = proxy.start(host="0.0.0.0" if mode == "docker" else "127.0.0.1")
+        proxy_host = "host.docker.internal" if mode == "docker" else "127.0.0.1"
+        env = _build_sandbox_env(fake_home_dir, sitecustomize_dir, audit_log_path, f"http://{proxy_host}:{port}")
+        if command:
+            command = [part.replace("{HOME}", str(fake_home_dir)).replace("{AUDIT}", str(audit_log_path)).replace("{PROXY}", f"http://{proxy_host}:{port}") for part in command]
 
         try:
-            async with open_server_session(entry.command, env=env) as session:
+            async with open_server_session(command or entry.command, env=env) as session:
                 for tool in tools:
                     args = build_sample_args(tool.input_schema)
                     try:
@@ -169,7 +176,7 @@ async def run_sandbox(entry: ServerEntry, tools: list[ToolInfo]) -> SandboxRepor
                             ToolCallOutcome(tool=tool.name, arguments=args, ok=False, error=str(exc))
                         )
         except Exception as exc:  # noqa: BLE001 - a server that won't even start shouldn't crash /scan
-            report.error = f"sandbox failed to run {entry.command}: {exc}"
+            report.error = f"sandbox failed to run {command or entry.command}: {exc}"
         finally:
             proxy.stop()
 
@@ -229,3 +236,12 @@ async def run_sandbox(entry: ServerEntry, tools: list[ToolInfo]) -> SandboxRepor
             )
 
     return report
+
+
+async def run_sandbox_auto(entry: ServerEntry, tools: list[ToolInfo]) -> SandboxReport:
+    """Prefer a Docker sandbox, falling back to the existing lite runner."""
+    from vetter.sandbox.docker_runner import docker_available, run_docker_sandbox
+
+    if docker_available():
+        return await run_docker_sandbox(entry, tools)
+    return await run_sandbox(entry, tools)

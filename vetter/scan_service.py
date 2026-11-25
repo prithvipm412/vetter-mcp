@@ -15,10 +15,10 @@ from typing import Any
 from vetter import db, fingerprint
 from vetter.mcp_client import list_server_tools
 from vetter.registry import ServerEntry
-from vetter.sandbox.runner import run_sandbox
+from vetter.sandbox.runner import run_sandbox_auto
 from vetter.scanner import merge_sandbox_results, scan_server
 
-SANDBOX_NOT_SUPPORTED_MESSAGE = "sandbox: not supported yet (static scan only)"
+SANDBOX_NOT_SUPPORTED_MESSAGE = "sandbox: not run"
 
 
 async def scan_and_store(
@@ -37,11 +37,9 @@ async def scan_and_store(
 
     verdict, labels, report = scan_server(entry, tools)
     if with_sandbox:
-        if entry.language == "python":
-            sandbox_report = await run_sandbox(entry, tools)
-            verdict, labels, report = merge_sandbox_results(verdict, labels, report, sandbox_report)
-        else:
-            report.behaviour.sandbox_error = SANDBOX_NOT_SUPPORTED_MESSAGE
+        sandbox_report = await run_sandbox_auto(entry, tools)
+        verdict, labels, report = merge_sandbox_results(verdict, labels, report, sandbox_report)
+        report.behaviour.sandbox_mode = sandbox_report.sandbox_mode  # type: ignore[assignment]
 
     scanned_at = datetime.now(UTC).isoformat()
     report_dict = report.model_dump()
