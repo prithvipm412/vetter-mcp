@@ -48,6 +48,7 @@ class CanaryLeak:
 @dataclass
 class SandboxReport:
     sandbox_mode: str = "lite"
+    canary_paths: dict[str, str] = field(default_factory=dict)
     files_opened: list[FileAccess] = field(default_factory=list)
     network_destinations: list[str] = field(default_factory=list)
     canary_leak: CanaryLeak = field(default_factory=lambda: CanaryLeak(leaked=False))
@@ -119,7 +120,12 @@ def _build_sandbox_env(
 
 
 async def run_sandbox(
-    entry: ServerEntry, tools: list[ToolInfo], *, command: list[str] | None = None, mode: str = "lite"
+    entry: ServerEntry,
+    tools: list[ToolInfo],
+    *,
+    command: list[str] | None = None,
+    mode: str = "lite",
+    command_env: dict[str, str] | None = None,
 ) -> SandboxReport:
     """Launch ``entry`` inside the lite sandbox and exercise every tool once."""
     report = SandboxReport()
@@ -131,6 +137,7 @@ async def run_sandbox(
         fake_home_dir = scratch_path / "home"
         fake_home_dir.mkdir()
         fake_home = create_fake_home(fake_home_dir)
+        report.canary_paths = fake_home.token_to_relpath()
 
         sitecustomize_dir = scratch_path / "sitecustomize"
         sitecustomize_dir.mkdir()
@@ -144,10 +151,16 @@ async def run_sandbox(
         proxy_host = "host.docker.internal" if mode == "docker" else "127.0.0.1"
         env = _build_sandbox_env(fake_home_dir, sitecustomize_dir, audit_log_path, f"http://{proxy_host}:{port}")
         if command:
-            command = [part.replace("{HOME}", str(fake_home_dir)).replace("{AUDIT}", str(audit_log_path)).replace("{PROXY}", f"http://{proxy_host}:{port}") for part in command]
+            command = [
+                part.replace("{HOME}", str(fake_home_dir))
+                .replace("{AUDIT}", str(audit_log_path))
+                .replace("{SITE}", str(sitecustomize_dir))
+                .replace("{PROXY}", f"http://{proxy_host}:{port}")
+                for part in command
+            ]
 
         try:
-            async with open_server_session(command or entry.command, env=env) as session:
+            async with open_server_session(command or entry.command, env=command_env or env) as session:
                 for tool in tools:
                     args = build_sample_args(tool.input_schema)
                     try:
@@ -187,9 +200,15 @@ async def run_sandbox(
         decoy_relpath_by_resolved = {
             str((fake_home_dir / relpath).resolve()): relpath for relpath in fake_home.canaries
         }
+        if mode == "docker":
+            decoy_relpath_by_resolved.update(
+                {f"/tmp/vetter-home/{relpath}": relpath for relpath in fake_home.canaries}
+            )
 
         def _is_noise(path: str) -> bool:
-            if path == str(audit_log_path) or path.startswith(str(sitecustomize_dir)):
+            if path in {str(audit_log_path), "/tmp/vetter-audit.ndjson"} or path.startswith(
+                (str(sitecustomize_dir), "/vetter-sandbox/sitecustomize")
+            ):
                 return True
             return (
                 "__pycache__" in path
@@ -243,5 +262,12 @@ async def run_sandbox_auto(entry: ServerEntry, tools: list[ToolInfo]) -> Sandbox
     from vetter.sandbox.docker_runner import docker_available, run_docker_sandbox
 
     if docker_available():
-        return await run_docker_sandbox(entry, tools)
-    return await run_sandbox(entry, tools)
+        try:
+            return await run_docker_sandbox(entry, tools)
+        except Exception as exc:  # noqa: BLE001 - Docker failure must never prevent a lite scan
+            report = await run_sandbox(entry, tools)
+            report.error = f"Docker unavailable ({exc}); used lite sandbox."
+            return report
+    report = await run_sandbox(entry, tools)
+    report.error = "Docker unavailable; used lite sandbox."
+    return report

@@ -9,6 +9,7 @@ from fastapi.testclient import TestClient
 import vetter.protect as protect_module
 from vetter import db, importer
 from vetter.main import app
+from vetter.sandbox.docker_runner import docker_available
 
 
 @pytest.fixture(autouse=True)
@@ -68,7 +69,7 @@ async def test_import_scans_a_real_python_server_end_to_end(tmp_path, isolated_p
     server = result["servers"][0]
     assert server["id"] == "imported_weather_clone"
     assert server["language"] == "python"
-    assert server["sandbox"] == "ran"
+    assert server["sandbox"] in {"docker", "lite"}
     assert server["verdict"] == "looks_ok"
     assert server["error"] is None
 
@@ -114,7 +115,11 @@ def test_import_endpoint_end_to_end(tmp_path, isolated_paths):
         assert detail["behaviour"]["sandbox_error"] is None
 
 
-def test_import_marks_non_python_servers_as_sandbox_unsupported(isolated_paths):
+@pytest.mark.skipif(
+    docker_available(),
+    reason="Docker can sandbox non-Python servers",
+)
+def test_non_python_servers_use_lite_mode_when_docker_is_unavailable(isolated_paths):
     import dataclasses
 
     from vetter.registry import SERVERS_BY_ID
@@ -127,4 +132,4 @@ def test_import_marks_non_python_servers_as_sandbox_unsupported(isolated_paths):
     import asyncio
 
     row = asyncio.run(scan_and_store(fake_entry, with_sandbox=True, db_path=isolated_paths["db"]))
-    assert row["behaviour"]["sandbox_error"] == "sandbox: not supported yet (static scan only)"
+    assert row["behaviour"]["sandbox_mode"] == "lite"
